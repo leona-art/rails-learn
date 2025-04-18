@@ -6,13 +6,15 @@ Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
   # ユーザー登録
-  post '/signup', to: 'users#create'
+  post "/signup", to: "users#create"
 
   # ログイン
-  post '/login', to: 'auth#create'
+  post "/login", to: "auth#create"
+
+  post "/refresh", to: "auth#refresh"
 
   # プロフィール (保護されたエンドポイント)
-  get '/profile', to: 'profile#show'
+  get "/profile", to: "profile#show"
 
   # Defines the root path route ("/")
   # root "posts#index"

@@ -1,11 +1,57 @@
 # app/controllers/concerns/authenticatable.rb
 module Authenticatable
-    # トークン生成
-    def encode_token(user_id)
-      # 有効期限を設定することも可能 (例: 24時間後)
-      # expires_in = 24.hours.from_now.to_i
-      payload = { user_id: user_id }
-      JWT.encode(payload, Rails.application.credentials.secret_key_base) # シークレットキーは環境変数または credentials に保存
+    # アクセストークンの有効期限 (例: 30分)
+    ACCESS_TOKEN_EXPIRATION = 30.minutes.from_now.to_i
+
+    # リフレッシュトークンの有効期限 (例: 7日)
+    REFRESH_TOKEN_EXPIRATION = 7.days.from_now.to_i
+
+    # アクセストークン生成
+    def encode_access_token(user_id)
+      payload = {
+        user_id: user_id,
+        exp: ACCESS_TOKEN_EXPIRATION # 有効期限を追加
+      }
+      JWT.encode(payload, Rails.application.credentials.secret_key_base, "HS256")
+    end
+
+    # アクセストークンのデコード・検証
+    # 期限切れの場合は JWT::ExpiredSignature エラーが発生する
+    def decode_access_token
+      if auth_header
+        token = auth_header.split(" ")[1] # "Bearer token" の "token" 部分を取得
+        begin
+          # デコード時に有効期限も検証される
+          JWT.decode(token, Rails.application.credentials.secret_key_base, true, algorithm: "HS256")
+        rescue JWT::DecodeError => e
+          # デコード失敗または期限切れの場合は nil を返す
+          # 必要であれば JWT::ExpiredSignature とその他のエラーでハンドリングを分ける
+          Rails.logger.warn "JWT Decode Error: #{e.message}" # デバッグ用にログ出力
+          nil
+        end
+      end
+    end
+
+    # リフレッシュトークン生成
+    def encode_refresh_token(user_id)
+      payload = {
+        user_id: user_id,
+        exp: REFRESH_TOKEN_EXPIRATION # 有効期限を追加
+      }
+      JWT.encode(payload, Rails.application.credentials.secret_key_base, "HS256")
+    end
+
+    # リフレッシュトークンのデコード・検証 (authenticate_request! とは別に使う)
+    # こちらも期限切れの場合は JWT::ExpiredSignature エラーが発生する
+    def decode_refresh_token(token)
+      begin
+        # デコード時に有効期限も検証される
+        JWT.decode(token, Rails.application.credentials.secret_key_base, true, algorithm: "HS256")
+      rescue JWT::DecodeError => e
+        # デコード失敗または期限切れの場合は nil を返す
+        Rails.logger.warn "Refresh Token Decode Error: #{e.message}" # デバッグ用にログ出力
+        nil
+      end
     end
 
     # リクエストヘッダーからトークン取得
@@ -13,21 +59,10 @@ module Authenticatable
       request.headers["Authorization"]
     end
 
-    # トークン検証
-    def decode_token
-      if auth_header
-        token = auth_header.split(" ")[1] # "Bearer token" の "token" 部分を取得
-        begin
-          JWT.decode(token, Rails.application.credentials.secret_key_base, true, algorithm: "HS256")
-        rescue JWT::DecodeError
-          nil
-        end
-      end
-    end
-
-    # 現在のユーザーを取得
+    # 現在のユーザーを取得 (アクセストークンに基づく)
     def current_user
-      if decoded_token = decode_token
+      # decode_access_token が成功した場合のみ実行
+      if decoded_token = decode_access_token
         user_id = decoded_token[0]["user_id"]
         @current_user ||= User.find_by(id: user_id)
       end
