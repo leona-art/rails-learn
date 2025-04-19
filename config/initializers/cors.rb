@@ -1,16 +1,18 @@
-# Be sure to restart your server when you modify this file.
-
-# Avoid CORS issues when API is called from the frontend app.
-# Handle Cross-Origin Resource Sharing (CORS) in order to accept cross-origin Ajax requests.
-
-# Read more: https://github.com/cyu/rack-cors
+# config/initializers/cors.rb
 
 Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
-    origins "http://localhost:3001" # フロントエンドのURLを指定
+    # Next.js アプリケーションのオリジンを正確に指定
+    origins "http://localhost:3001"
 
     resource "*",
       headers: :any,
-      methods: [:get, :post, :put, :patch, :delete, :options, :head]
+      methods: [ :get, :post, :put, :patch, :delete, :options, :head ],
+      # ★★★ credentials: true が重要 ★★★
+      # これにより、オリジン間リクエストでCookieを含むヘッダー(Set-Cookie含む)の送受信が許可される
+      credentials: true,
+      # ★★★ expose オプションを追加してみる ★★★
+      # Set-Cookieヘッダーを明示的に公開する必要があるか試す (通常は不要だが念のため)
+      expose: [ "Set-Cookie" ]
   end
 end
